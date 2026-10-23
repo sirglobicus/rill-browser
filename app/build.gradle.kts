@@ -11,8 +11,9 @@ android {
         applicationId = "com.rillbrowser.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI overrides these from buildif.md (release=<version>) so each release installs over the last.
+        versionCode = System.getenv("APP_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("APP_VERSION") ?: "0.1.0"
     }
 
     buildFeatures { buildConfig = true }

@@ -1,2 +1,2 @@
 build=yes
-release=no
+release=0.1.1-alpha

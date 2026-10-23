@@ -19,12 +19,21 @@ jobs:
         run: |
           should_build=false
           release=false
+          version=""
           if [ -f buildif.md ]; then
             grep -qiE '^[[:space:]]*build=yes[[:space:]]*$' buildif.md && should_build=true
             grep -qiE '^[[:space:]]*release=yes[[:space:]]*$' buildif.md && release=true
+            # release=1.2.3 (or v1.2.3) publishes a release tagged v1.2.3
+            v=$(grep -iE '^[[:space:]]*release=v?[0-9]+(\.[0-9]+)*([-+.][0-9A-Za-z.]+)?[[:space:]]*$' buildif.md | head -n1 \
+              | sed -E 's/^[[:space:]]*[Rr][Ee][Ll][Ee][Aa][Ss][Ee]=v?//; s/[[:space:]]*$//' | tr -d '\r')
+            if [ -n "$v" ]; then
+              release=true
+              version="$v"
+            fi
           fi
           echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
           echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$should_build" != "true" ]; then
             echo "Build skipped (buildif.md is not build=yes)"
           fi
@@ -66,13 +75,19 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+          APP_VERSION: ${{ steps.check.outputs.version }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          [ -z "$APP_VERSION" ] && unset APP_VERSION
+          ./gradlew assembleRelease
 
       - name: Name the APK with the commit short SHA
         if: steps.check.outputs.should_build == 'true'
         run: |
           mkdir out
-          cp app/build/outputs/apk/release/*.apk "out/rill-browser-${GITHUB_SHA::7}.apk"
+          name="rill-browser-${GITHUB_SHA::7}"
+          [ -n "${{ steps.check.outputs.version }}" ] && name="rill-browser-v${{ steps.check.outputs.version }}"
+          cp app/build/outputs/apk/release/*.apk "out/$name.apk"
           ls -la out
 
       - name: Upload APKs
@@ -88,5 +103,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="build-${GITHUB_SHA::7}"
-          gh release create "$tag" out/*.apk --title "Rill $tag" --notes "Automated build of $GITHUB_SHA" --latest
+          if [ -n "${{ steps.check.outputs.version }}" ]; then
+            tag="v${{ steps.check.outputs.version }}"
+          else
+            tag="build-${GITHUB_SHA::7}"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists: replacing its APK."
+            gh release upload "$tag" out/*.apk --clobber
+          else
+            gh release create "$tag" out/*.apk --target "$GITHUB_SHA" --title "Rill $tag" --notes "Automated build of $GITHUB_SHA" --latest
+          fi

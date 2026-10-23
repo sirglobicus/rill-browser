@@ -60,7 +60,8 @@ Every push to `main` starts the workflow, but it only builds when `buildif.md` i
 
 ```
 build=yes     <- build and upload APKs as a workflow artifact (kept 30 days)
-release=yes   <- optional extra line: also publish the APKs as a GitHub Release
+release=yes   <- optional extra line: also publish the APKs as a GitHub Release (tag build-<short sha>)
+release=1.0.0 <- instead of yes: publish a Release tagged v1.0.0 and set the app's versionName to 1.0.0
 ```
 ```
 build=no      <- push without building
