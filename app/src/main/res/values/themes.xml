@@ -1,0 +1,17 @@
+<resources>
+    <style name="Theme.Rill" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/rill_bg</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:colorAccent">@color/rill_accent</item>
+        <item name="android:colorControlActivated">@color/rill_accent</item>
+        <item name="android:alertDialogTheme">@style/Theme.Rill.Dialog</item>
+    </style>
+
+    <style name="Theme.Rill.Dialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="android:colorAccent">@color/rill_accent</item>
+        <item name="android:colorControlActivated">@color/rill_accent</item>
+        <item name="android:textColorPrimary">#F2F4F8</item>
+        <item name="android:textColorSecondary">#9AA3B5</item>
+    </style>
+</resources>

@@ -1,0 +1,6 @@
+<resources>
+    <color name="rill_bg">#1B1C21</color>
+    <color name="rill_surface">#2A2B32</color>
+    <color name="rill_accent">#2B8BEA</color>
+    <color name="rill_logo_bg">#183767</color>
+</resources>

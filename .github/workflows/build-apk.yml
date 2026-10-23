@@ -1,0 +1,88 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # only used when buildif.md also says release=yes
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check buildif.md
+        id: check
+        run: |
+          should_build=false
+          release=false
+          if [ -f buildif.md ]; then
+            grep -qiE '^[[:space:]]*build=yes[[:space:]]*$' buildif.md && should_build=true
+            grep -qiE '^[[:space:]]*release=yes[[:space:]]*$' buildif.md && release=true
+          fi
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          if [ "$should_build" != "true" ]; then
+            echo "Build skipped (buildif.md is not build=yes)"
+          fi
+
+      - name: Set up JDK 17
+        if: steps.check.outputs.should_build == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        if: steps.check.outputs.should_build == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing keystore
+        if: steps.check.outputs.should_build == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "No KEYSTORE_B64 secret: APK will be signed with the debug key."
+          fi
+
+      - name: Unit tests
+        if: steps.check.outputs.should_build == 'true'
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build release APKs
+        if: steps.check.outputs.should_build == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Name the APK with the commit short SHA
+        if: steps.check.outputs.should_build == 'true'
+        run: |
+          mkdir out
+          cp app/build/outputs/apk/release/*.apk "out/rill-browser-${GITHUB_SHA::7}.apk"
+          ls -la out
+
+      - name: Upload APKs
+        if: steps.check.outputs.should_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rill-browser-${{ github.sha }}
+          path: out/*.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: steps.check.outputs.should_build == 'true' && steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${GITHUB_SHA::7}"
+          gh release create "$tag" out/*.apk --title "Rill $tag" --notes "Automated build of $GITHUB_SHA" --latest
